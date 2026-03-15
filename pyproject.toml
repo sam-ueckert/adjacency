@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=68.0", "setuptools-scm>=8.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "adjacency"
+version = "0.1.0"
+description = "Intelligent network device adjacency mapping via L2/L3 discovery and rationalization"
+requires-python = ">=3.11"
+license = "MIT"
+dependencies = [
+    "nornir>=3.4",
+    "nornir-napalm>=0.4",
+    "nornir-utils>=0.2",
+    "napalm>=4.1",
+    "pydantic>=2.5",
+    "click>=8.1",
+    "rich>=13.7",
+    "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4",
+    "pytest-cov>=4.1",
+    "ruff>=0.3",
+]
+
+[project.scripts]
+adjacency = "adjacency.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "lab: integration tests requiring a live containerlab topology (use --lab to run)",
+]

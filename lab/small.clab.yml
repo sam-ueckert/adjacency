@@ -1,0 +1,46 @@
+# Containerlab topology: 4-node leaf-spine fabric
+#
+# Images (pick one, set via CLAB_SRLINUX_IMAGE or edit below):
+#   - Nokia SR Linux: ghcr.io/nokia/srlinux:latest  (free, no license)
+#   - Arista cEOS:    ceos:4.32.2F                  (free with Arista account)
+#
+# Deploy:  sudo containerlab deploy -t small.clab.yml
+# Destroy: sudo containerlab destroy -t small.clab.yml
+
+name: adj-small
+
+topology:
+  defaults:
+    kind: nokia_srlinux
+    image: ghcr.io/nokia/srlinux:latest
+
+  nodes:
+    spine-01:
+      kind: nokia_srlinux
+      startup-config: configs/spine-01.cfg
+    spine-02:
+      kind: nokia_srlinux
+      startup-config: configs/spine-02.cfg
+    leaf-01:
+      kind: nokia_srlinux
+      startup-config: configs/leaf-01.cfg
+    leaf-02:
+      kind: nokia_srlinux
+      startup-config: configs/leaf-02.cfg
+
+  links:
+    # leaf-01 <-> spine-01: LAG (2 members)
+    - endpoints: ["leaf-01:e1-1", "spine-01:e1-1"]
+    - endpoints: ["leaf-01:e1-2", "spine-01:e1-2"]
+
+    # leaf-01 <-> spine-02: single link
+    - endpoints: ["leaf-01:e1-3", "spine-02:e1-1"]
+
+    # leaf-02 <-> spine-01: single link
+    - endpoints: ["leaf-02:e1-1", "spine-01:e1-3"]
+
+    # leaf-02 <-> spine-02: single link
+    - endpoints: ["leaf-02:e1-2", "spine-02:e1-2"]
+
+    # leaf-01 <-> leaf-02: peer link
+    - endpoints: ["leaf-01:e1-4", "leaf-02:e1-3"]

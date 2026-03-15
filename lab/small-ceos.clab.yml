@@ -1,0 +1,47 @@
+# Containerlab topology: 4-node leaf-spine fabric (Arista cEOS variant)
+#
+# Requires cEOS image imported into Docker:
+#   docker import cEOS64-lab-4.32.2F.tar ceos:4.32.2F
+#
+# Deploy:  sudo containerlab deploy -t small-ceos.clab.yml
+# Destroy: sudo containerlab destroy -t small-ceos.clab.yml
+
+name: adj-small-ceos
+
+topology:
+  defaults:
+    kind: ceos
+    image: ceos:4.32.2F
+    env:
+      INTFTYPE: et
+
+  nodes:
+    spine-01:
+      kind: ceos
+      startup-config: configs/ceos-spine-01.cfg
+    spine-02:
+      kind: ceos
+      startup-config: configs/ceos-spine-02.cfg
+    leaf-01:
+      kind: ceos
+      startup-config: configs/ceos-leaf-01.cfg
+    leaf-02:
+      kind: ceos
+      startup-config: configs/ceos-leaf-02.cfg
+
+  links:
+    # leaf-01 <-> spine-01: LAG (2 members)
+    - endpoints: ["leaf-01:eth1", "spine-01:eth1"]
+    - endpoints: ["leaf-01:eth2", "spine-01:eth2"]
+
+    # leaf-01 <-> spine-02: single link
+    - endpoints: ["leaf-01:eth3", "spine-02:eth1"]
+
+    # leaf-02 <-> spine-01: single link
+    - endpoints: ["leaf-02:eth1", "spine-01:eth3"]
+
+    # leaf-02 <-> spine-02: single link
+    - endpoints: ["leaf-02:eth2", "spine-02:eth2"]
+
+    # leaf-01 <-> leaf-02: peer link
+    - endpoints: ["leaf-01:eth4", "leaf-02:eth3"]

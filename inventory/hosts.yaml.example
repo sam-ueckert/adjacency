@@ -1,0 +1,27 @@
+# Nornir SimpleInventory hosts file
+# Copy to hosts.yaml and fill in your devices.
+#
+# platform values use NAPALM driver names:
+#   ios, eos, junos, nxos_ssh, iosxr, etc.
+
+---
+spine-01:
+  hostname: 10.0.0.1
+  platform: eos
+  groups: []
+  data:
+    role: spine
+
+spine-02:
+  hostname: 10.0.0.2
+  platform: eos
+  groups: []
+  data:
+    role: spine
+
+leaf-01:
+  hostname: 10.0.1.1
+  platform: nxos_ssh
+  groups: []
+  data:
+    role: leaf

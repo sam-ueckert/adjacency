@@ -1,0 +1,29 @@
+# Nornir inventory for the containerlab topology.
+# Management IPs are assigned by containerlab in the 172.20.20.0/24 range.
+# Run `sudo containerlab inspect -t small-ceos.clab.yml` to get actual IPs.
+#
+# Update the hostname fields below with the real management IPs.
+---
+spine-01:
+  hostname: 172.20.20.2
+  platform: eos
+  data:
+    role: spine
+
+spine-02:
+  hostname: 172.20.20.3
+  platform: eos
+  data:
+    role: spine
+
+leaf-01:
+  hostname: 172.20.20.4
+  platform: eos
+  data:
+    role: leaf
+
+leaf-02:
+  hostname: 172.20.20.5
+  platform: eos
+  data:
+    role: leaf
