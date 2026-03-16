@@ -1,0 +1,20 @@
+graph adjacency {
+    graph [rankdir=LR, overlap=false, splines=true, bgcolor="#1a1a2e"];
+    node [shape=box, style="filled,rounded", fontname="Helvetica", fontsize=10, fontcolor="#eeeeee"];
+    edge [fontname="Helvetica", fontsize=8, fontcolor="#cccccc"];
+
+    subgraph "cluster_srlinux" {
+        label="srlinux"; fontcolor="#cccccc";
+        style=filled; fillcolor="#00968822"; color="#009688";
+        "leaf-01" [label="leaf-01\n172.20.20.4\n7220 IXR-D3", fillcolor="#009688"];
+        "leaf-02" [label="leaf-02\n172.20.20.5\n7220 IXR-D3", fillcolor="#009688"];
+        "spine-01" [label="spine-01\n172.20.20.2\n7220 IXR-D2", fillcolor="#009688"];
+        "spine-02" [label="spine-02\n172.20.20.3\n7220 IXR-D2", fillcolor="#009688"];
+    }
+
+    "leaf-01" -- "spine-01" [label="lag1 -- lag1\nLAG x2", style=bold, penwidth=4, color="#4fc3f7"];
+    "leaf-01" -- "spine-02" [label="ethernet-1/3 -- ethernet-1/1", color="#78909C"];
+    "leaf-02" -- "spine-01" [label="ethernet-1/1 -- ethernet-1/3", color="#78909C"];
+    "leaf-02" -- "spine-02" [label="ethernet-1/2 -- ethernet-1/2", color="#78909C"];
+    "leaf-01" -- "leaf-02" [label="ethernet-1/4 -- ethernet-1/3", color="#78909C"];
+}

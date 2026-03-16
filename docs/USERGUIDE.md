@@ -325,7 +325,10 @@ and every raw neighbor observation that contributed to those links.
 Snapshots are what you load, visualize, compare, and share.
 
 A complete example generated from the included lab topology is available at
-[`docs/examples/lab-snapshot.json`](examples/lab-snapshot.json).
+[`docs/examples/lab-snapshot.json`](examples/lab-snapshot.json), with
+corresponding visualization output in
+[`docs/examples/lab-topology.html`](examples/lab-topology.html) and
+[`docs/examples/lab-topology.dot`](examples/lab-topology.dot).
 
 ### 6.1 Lifecycle
 
@@ -584,6 +587,14 @@ jq '[.data.raw_records[].source] | unique' snapshot.json
 ---
 
 ## 7. Visualization
+
+An example of each output format generated from the lab snapshot is
+included in the repo:
+
+- **HTML:** [`docs/examples/lab-topology.html`](examples/lab-topology.html)
+  — open in a browser to see the interactive map
+- **DOT:** [`docs/examples/lab-topology.dot`](examples/lab-topology.dot)
+  — render with `neato` or `dot` (see below)
 
 ### Interactive HTML (Cytoscape.js)
 
