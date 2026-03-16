@@ -22,6 +22,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "pytest>=7.4",
+    "pytest-asyncio>=0.23",
     "pytest-cov>=4.1",
     "ruff>=0.3",
 ]
@@ -41,6 +42,7 @@ select = ["E", "F", "I", "N", "W"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+asyncio_mode = "auto"
 markers = [
     "lab: integration tests requiring a live containerlab topology (use --lab to run)",
 ]

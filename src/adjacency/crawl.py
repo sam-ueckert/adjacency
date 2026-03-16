@@ -8,16 +8,17 @@ per-device from a :class:`CredentialStore` using network-range matching.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 import socket
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 
 from napalm import get_network_driver
 
 from adjacency.collectors.cdp import _parse_cdp_output
 from adjacency.collectors.facts import enrich_devices_with_rdns
+from adjacency.collectors.routes import connected_subnets, extract_route_neighbors
 from adjacency.credentials import CredentialStore, Credential, detect_platform
 from adjacency.models import (
     AdjacencyTable,
@@ -74,10 +75,14 @@ def _normalize_mac(mac: str | None) -> str | None:
     return ":".join(cleaned[i : i + 2] for i in range(0, 12, 2))
 
 
-def _resolve_hostname(name: str) -> str | None:
-    """Forward DNS lookup.  Returns IP or None."""
+async def _resolve_hostname(name: str) -> str | None:
+    """Forward DNS lookup (non-blocking).  Returns IP or None."""
     try:
-        return socket.gethostbyname(name)
+        loop = asyncio.get_running_loop()
+        results = await loop.getaddrinfo(name, None, family=socket.AF_INET)
+        if results:
+            return results[0][4][0]
+        return None
     except (socket.gaierror, socket.herror, OSError):
         return None
 
@@ -94,6 +99,7 @@ def _collect_device(
     collect_l2: bool = True,
     collect_l3: bool = True,
     collect_cdp: bool = True,
+    collect_routes: bool = True,
 ) -> tuple[Device, list[NeighborRecord], list[CrawlTarget]]:
     """Collect all data from an open NAPALM driver.
 
@@ -254,6 +260,29 @@ def _collect_device(
                 source=DataSource.ARP_TABLE,
             ))
 
+    # --- Route table ---
+    if collect_routes:
+        try:
+            route_data = driver.get_route_to(destination="")
+        except Exception:
+            route_data = {}
+
+        # Only keep next-hops on locally connected subnets — those are
+        # truly one L3 hop away.  Remote next-hops are behind intermediate
+        # routers and do not represent direct adjacencies.
+        local_nets = connected_subnets(ip_data)
+        route_records = extract_route_neighbors(
+            effective_hostname, route_data, local_nets,
+        )
+        records.extend(route_records)
+
+        # Each unique adjacent next-hop IP is also a crawl target.
+        seen_route_ips: set[str] = set()
+        for rec in route_records:
+            if rec.remote_ip and rec.remote_ip not in seen_route_ips:
+                seen_route_ips.add(rec.remote_ip)
+                next_hops.append(CrawlTarget(ip=rec.remote_ip))
+
     return device, records, next_hops
 
 
@@ -340,7 +369,7 @@ def _try_connect(
 # Crawl engine
 # ---------------------------------------------------------------------------
 
-def crawl(
+async def crawl(
     seeds: list[SeedDevice],
     cred_store: CredentialStore,
     *,
@@ -349,6 +378,7 @@ def crawl(
     collect_l2: bool = True,
     collect_l3: bool = True,
     collect_cdp: bool = True,
+    collect_routes: bool = True,
     do_rdns: bool = True,
     timeout: int = 30,
 ) -> AdjacencyTable:
@@ -365,8 +395,9 @@ def crawl(
         0 = seeds only, 1 = seeds + their neighbors, etc.
     max_workers:
         Parallelism for device probing at each depth level.
-    collect_l2 / collect_l3 / collect_cdp:
-        Which data sources to collect.
+    collect_l2 / collect_l3 / collect_cdp / collect_routes:
+        Which data sources to collect.  Route table next-hops are
+        also used as crawl targets (within the configured depth).
     do_rdns:
         Perform reverse DNS on discovered device IPs.
     timeout:
@@ -384,7 +415,7 @@ def crawl(
         ip = seed.host
         # If seed.host looks like a hostname, resolve it
         if not _is_ip(ip):
-            resolved = _resolve_hostname(ip)
+            resolved = await _resolve_hostname(ip)
             if resolved:
                 frontier.append(CrawlTarget(
                     ip=resolved, hostname=seed.host,
@@ -398,6 +429,8 @@ def crawl(
                 ip=ip, hostname=None, platform_hint=seed.platform,
                 discovered_at_depth=0,
             ))
+
+    sem = asyncio.Semaphore(max_workers)
 
     for depth in range(max_depth + 1):
         if not frontier:
@@ -414,7 +447,7 @@ def crawl(
                 continue
             # Resolve hostname to IP if needed
             if not target.ip and target.hostname:
-                resolved = _resolve_hostname(target.hostname)
+                resolved = await _resolve_hostname(target.hostname)
                 if not resolved:
                     continue
                 target.ip = resolved
@@ -431,45 +464,48 @@ def crawl(
 
         next_frontier: list[CrawlTarget] = []
 
-        # Probe devices in parallel
-        with ThreadPoolExecutor(max_workers=max_workers) as pool:
-            future_map = {
-                pool.submit(
-                    _probe_single, target, cred_store, collect_l2, collect_l3,
-                    collect_cdp, timeout,
-                ): target
-                for target in to_probe
-            }
-
-            for future in as_completed(future_map):
-                target = future_map[future]
+        # Probe devices concurrently using asyncio
+        async def _probe_one(target: CrawlTarget):
+            async with sem:
                 try:
-                    probe_result = future.result()
+                    probe_result = await asyncio.to_thread(
+                        _probe_single, target, cred_store, collect_l2,
+                        collect_l3, collect_cdp, collect_routes, timeout,
+                    )
+                    return target, probe_result, None
                 except Exception as exc:
-                    log.warning("Probe of %s failed: %s", target.ip, exc)
-                    result.failed_hosts[target.ip] = str(exc)
-                    continue
+                    return target, None, exc
 
-                if probe_result is None:
-                    result.failed_hosts[target.ip] = "authentication failed"
-                    continue
+        outcomes = await asyncio.gather(
+            *[_probe_one(t) for t in to_probe]
+        )
 
-                device, records, next_hops = probe_result
-                result.devices[device.hostname] = device
-                result.records.extend(records)
-                visited_hostnames.add(device.hostname)
+        for target, probe_result, error in outcomes:
+            if error is not None:
+                log.warning("Probe of %s failed: %s", target.ip, error)
+                result.failed_hosts[target.ip] = str(error)
+                continue
 
-                # Queue next hops if we haven't reached max depth
-                if depth < max_depth:
-                    for hop in next_hops:
-                        hop.discovered_at_depth = depth + 1
-                        next_frontier.append(hop)
+            if probe_result is None:
+                result.failed_hosts[target.ip] = "authentication failed"
+                continue
+
+            device, records, next_hops = probe_result
+            result.devices[device.hostname] = device
+            result.records.extend(records)
+            visited_hostnames.add(device.hostname)
+
+            # Queue next hops if we haven't reached max depth
+            if depth < max_depth:
+                for hop in next_hops:
+                    hop.discovered_at_depth = depth + 1
+                    next_frontier.append(hop)
 
         frontier = next_frontier
 
     # Enrich with reverse DNS
     if do_rdns:
-        enrich_devices_with_rdns(result.devices)
+        await enrich_devices_with_rdns(result.devices)
 
     table = rationalize(result.devices, result.records)
 
@@ -490,6 +526,7 @@ def _probe_single(
     collect_l2: bool,
     collect_l3: bool,
     collect_cdp: bool,
+    collect_routes: bool,
     timeout: int,
 ) -> tuple[Device, list[NeighborRecord], list[CrawlTarget]] | None:
     """Connect to a single device, collect data, close connection."""
@@ -505,6 +542,7 @@ def _probe_single(
             collect_l2=collect_l2,
             collect_l3=collect_l3,
             collect_cdp=collect_cdp,
+            collect_routes=collect_routes,
         )
         return device, records, next_hops
     finally:

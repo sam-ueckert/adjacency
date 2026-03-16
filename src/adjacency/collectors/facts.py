@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
 import socket
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from nornir.core import Nornir
 from nornir.core.task import Result, Task
@@ -64,24 +64,25 @@ def enrich_devices_with_facts(
 # Reverse DNS
 # ---------------------------------------------------------------------------
 
-def _reverse_lookup(ip: str) -> str | None:
-    """Attempt a PTR lookup for a single IP.  Returns FQDN or None."""
+async def _reverse_lookup(ip: str) -> str | None:
+    """Attempt a PTR lookup for a single IP (non-blocking).  Returns FQDN or None."""
     try:
-        hostname, _, _ = socket.gethostbyaddr(ip)
+        loop = asyncio.get_running_loop()
+        hostname, _ = await loop.getnameinfo((ip, 0), socket.NI_NAMEREQD)
         return hostname
     except (socket.herror, socket.gaierror, OSError):
         return None
 
 
-def enrich_devices_with_rdns(
+async def enrich_devices_with_rdns(
     devices: dict[str, Device],
     *,
     max_workers: int = 20,
 ) -> None:
     """Perform reverse DNS lookups for management IPs and interface IPs.
 
-    Results are stored in ``Device.dns_names``.  Runs lookups in a thread
-    pool since DNS can be slow and we want to parallelise across many IPs.
+    Results are stored in ``Device.dns_names``.  Uses asyncio for
+    non-blocking, concurrent DNS resolution.
     """
     # Collect all (hostname, ip) pairs to look up
     work: list[tuple[str, str]] = []
@@ -100,20 +101,24 @@ def enrich_devices_with_rdns(
             seen.add(item)
             unique_work.append(item)
 
-    # Parallel DNS lookups
-    results: dict[str, set[str]] = {}
-    with ThreadPoolExecutor(max_workers=max_workers) as pool:
-        futures = {
-            pool.submit(_reverse_lookup, ip): (dev_hostname, ip)
-            for dev_hostname, ip in unique_work
-        }
-        for future in as_completed(futures):
-            dev_hostname, ip = futures[future]
-            dns_name = future.result()
-            if dns_name:
-                results.setdefault(dev_hostname, set()).add(dns_name)
+    # Concurrent async DNS lookups with semaphore for concurrency control
+    sem = asyncio.Semaphore(max_workers)
+
+    async def _lookup_one(dev_hostname: str, ip: str):
+        async with sem:
+            dns_name = await _reverse_lookup(ip)
+            return dev_hostname, dns_name
+
+    outcomes = await asyncio.gather(
+        *[_lookup_one(dh, ip) for dh, ip in unique_work]
+    )
 
     # Apply results
+    results: dict[str, set[str]] = {}
+    for dev_hostname, dns_name in outcomes:
+        if dns_name:
+            results.setdefault(dev_hostname, set()).add(dns_name)
+
     for hostname, names in results.items():
         dev = devices.get(hostname)
         if dev:

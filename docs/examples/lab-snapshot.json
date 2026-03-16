@@ -1,0 +1,581 @@
+{
+  "meta": {
+    "snapshot_id": "lab",
+    "created_at": "2026-03-16T10:30:00+00:00",
+    "adjacency_version": "0.1.0",
+    "inventory_path": "lab/lab-inventory",
+    "label": "lab",
+    "device_count": 4,
+    "link_count": 5,
+    "raw_record_count": 16
+  },
+  "data": {
+    "devices": {
+      "spine-01": {
+        "hostname": "spine-01",
+        "platform": "srlinux",
+        "management_ip": "172.20.20.2",
+        "serial": "Sim-SP01",
+        "vendor": "Nokia",
+        "model": "7220 IXR-D2",
+        "os_version": "24.10.1",
+        "dns_names": [],
+        "hardware": {
+          "vendor": "Nokia",
+          "model": "7220 IXR-D2",
+          "hardware_model": "7220 IXR-D2",
+          "serial_number": "Sim-SP01",
+          "os_version": "24.10.1",
+          "uptime_seconds": 86400,
+          "fqdn": "spine-01.lab"
+        },
+        "interfaces": {
+          "ethernet-1/1": {
+            "name": "ethernet-1/1",
+            "mac_address": "aa:c1:ab:00:01:01",
+            "ip_addresses": ["10.1.1.1"],
+            "speed_mbps": 25000,
+            "is_up": true,
+            "mtu": 9232,
+            "description": "to leaf-01 (lag member)",
+            "is_lag": false,
+            "lag_parent": "lag1",
+            "lag_members": []
+          },
+          "ethernet-1/2": {
+            "name": "ethernet-1/2",
+            "mac_address": "aa:c1:ab:00:01:02",
+            "ip_addresses": ["10.1.1.5"],
+            "speed_mbps": 25000,
+            "is_up": true,
+            "mtu": 9232,
+            "description": "to leaf-01 (lag member)",
+            "is_lag": false,
+            "lag_parent": "lag1",
+            "lag_members": []
+          },
+          "ethernet-1/3": {
+            "name": "ethernet-1/3",
+            "mac_address": "aa:c1:ab:00:01:03",
+            "ip_addresses": ["10.1.2.1"],
+            "speed_mbps": 25000,
+            "is_up": true,
+            "mtu": 9232,
+            "description": "to leaf-02",
+            "is_lag": false,
+            "lag_parent": null,
+            "lag_members": []
+          },
+          "lag1": {
+            "name": "lag1",
+            "mac_address": "aa:c1:ab:00:01:f0",
+            "ip_addresses": [],
+            "speed_mbps": 50000,
+            "is_up": true,
+            "mtu": 9232,
+            "description": "LAG to leaf-01",
+            "is_lag": true,
+            "lag_parent": null,
+            "lag_members": ["ethernet-1/1", "ethernet-1/2"]
+          },
+          "mgmt0": {
+            "name": "mgmt0",
+            "mac_address": "aa:c1:ab:00:01:00",
+            "ip_addresses": ["172.20.20.2"],
+            "speed_mbps": 1000,
+            "is_up": true,
+            "mtu": 1500,
+            "description": "management",
+            "is_lag": false,
+            "lag_parent": null,
+            "lag_members": []
+          }
+        },
+        "known_macs": ["aa:c1:ab:00:01:00", "aa:c1:ab:00:01:01", "aa:c1:ab:00:01:02", "aa:c1:ab:00:01:03", "aa:c1:ab:00:01:f0"],
+        "known_ips": ["10.1.1.1", "10.1.1.5", "10.1.2.1", "172.20.20.2"],
+        "shared_macs": [],
+        "shared_ips": []
+      },
+      "spine-02": {
+        "hostname": "spine-02",
+        "platform": "srlinux",
+        "management_ip": "172.20.20.3",
+        "serial": "Sim-SP02",
+        "vendor": "Nokia",
+        "model": "7220 IXR-D2",
+        "os_version": "24.10.1",
+        "dns_names": [],
+        "hardware": {
+          "vendor": "Nokia",
+          "model": "7220 IXR-D2",
+          "hardware_model": "7220 IXR-D2",
+          "serial_number": "Sim-SP02",
+          "os_version": "24.10.1",
+          "uptime_seconds": 86400,
+          "fqdn": "spine-02.lab"
+        },
+        "interfaces": {
+          "ethernet-1/1": {
+            "name": "ethernet-1/1",
+            "mac_address": "aa:c1:ab:00:02:01",
+            "ip_addresses": ["10.1.3.1"],
+            "speed_mbps": 25000,
+            "is_up": true,
+            "mtu": 9232,
+            "description": "to leaf-01",
+            "is_lag": false,
+            "lag_parent": null,
+            "lag_members": []
+          },
+          "ethernet-1/2": {
+            "name": "ethernet-1/2",
+            "mac_address": "aa:c1:ab:00:02:02",
+            "ip_addresses": ["10.1.4.1"],
+            "speed_mbps": 25000,
+            "is_up": true,
+            "mtu": 9232,
+            "description": "to leaf-02",
+            "is_lag": false,
+            "lag_parent": null,
+            "lag_members": []
+          },
+          "mgmt0": {
+            "name": "mgmt0",
+            "mac_address": "aa:c1:ab:00:02:00",
+            "ip_addresses": ["172.20.20.3"],
+            "speed_mbps": 1000,
+            "is_up": true,
+            "mtu": 1500,
+            "description": "management",
+            "is_lag": false,
+            "lag_parent": null,
+            "lag_members": []
+          }
+        },
+        "known_macs": ["aa:c1:ab:00:02:00", "aa:c1:ab:00:02:01", "aa:c1:ab:00:02:02"],
+        "known_ips": ["10.1.3.1", "10.1.4.1", "172.20.20.3"],
+        "shared_macs": [],
+        "shared_ips": []
+      },
+      "leaf-01": {
+        "hostname": "leaf-01",
+        "platform": "srlinux",
+        "management_ip": "172.20.20.4",
+        "serial": "Sim-LF01",
+        "vendor": "Nokia",
+        "model": "7220 IXR-D3",
+        "os_version": "24.10.1",
+        "dns_names": [],
+        "hardware": {
+          "vendor": "Nokia",
+          "model": "7220 IXR-D3",
+          "hardware_model": "7220 IXR-D3",
+          "serial_number": "Sim-LF01",
+          "os_version": "24.10.1",
+          "uptime_seconds": 86400,
+          "fqdn": "leaf-01.lab"
+        },
+        "interfaces": {
+          "ethernet-1/1": {
+            "name": "ethernet-1/1",
+            "mac_address": "aa:c1:ab:00:03:01",
+            "ip_addresses": ["10.1.1.2"],
+            "speed_mbps": 25000,
+            "is_up": true,
+            "mtu": 9232,
+            "description": "to spine-01 (lag member)",
+            "is_lag": false,
+            "lag_parent": "lag1",
+            "lag_members": []
+          },
+          "ethernet-1/2": {
+            "name": "ethernet-1/2",
+            "mac_address": "aa:c1:ab:00:03:02",
+            "ip_addresses": ["10.1.1.6"],
+            "speed_mbps": 25000,
+            "is_up": true,
+            "mtu": 9232,
+            "description": "to spine-01 (lag member)",
+            "is_lag": false,
+            "lag_parent": "lag1",
+            "lag_members": []
+          },
+          "ethernet-1/3": {
+            "name": "ethernet-1/3",
+            "mac_address": "aa:c1:ab:00:03:03",
+            "ip_addresses": ["10.1.3.2"],
+            "speed_mbps": 25000,
+            "is_up": true,
+            "mtu": 9232,
+            "description": "to spine-02",
+            "is_lag": false,
+            "lag_parent": null,
+            "lag_members": []
+          },
+          "ethernet-1/4": {
+            "name": "ethernet-1/4",
+            "mac_address": "aa:c1:ab:00:03:04",
+            "ip_addresses": ["10.1.5.1"],
+            "speed_mbps": 25000,
+            "is_up": true,
+            "mtu": 9232,
+            "description": "peer link to leaf-02",
+            "is_lag": false,
+            "lag_parent": null,
+            "lag_members": []
+          },
+          "lag1": {
+            "name": "lag1",
+            "mac_address": "aa:c1:ab:00:03:f0",
+            "ip_addresses": [],
+            "speed_mbps": 50000,
+            "is_up": true,
+            "mtu": 9232,
+            "description": "LAG to spine-01",
+            "is_lag": true,
+            "lag_parent": null,
+            "lag_members": ["ethernet-1/1", "ethernet-1/2"]
+          },
+          "mgmt0": {
+            "name": "mgmt0",
+            "mac_address": "aa:c1:ab:00:03:00",
+            "ip_addresses": ["172.20.20.4"],
+            "speed_mbps": 1000,
+            "is_up": true,
+            "mtu": 1500,
+            "description": "management",
+            "is_lag": false,
+            "lag_parent": null,
+            "lag_members": []
+          }
+        },
+        "known_macs": ["aa:c1:ab:00:03:00", "aa:c1:ab:00:03:01", "aa:c1:ab:00:03:02", "aa:c1:ab:00:03:03", "aa:c1:ab:00:03:04", "aa:c1:ab:00:03:f0"],
+        "known_ips": ["10.1.1.2", "10.1.1.6", "10.1.3.2", "10.1.5.1", "172.20.20.4"],
+        "shared_macs": [],
+        "shared_ips": []
+      },
+      "leaf-02": {
+        "hostname": "leaf-02",
+        "platform": "srlinux",
+        "management_ip": "172.20.20.5",
+        "serial": "Sim-LF02",
+        "vendor": "Nokia",
+        "model": "7220 IXR-D3",
+        "os_version": "24.10.1",
+        "dns_names": [],
+        "hardware": {
+          "vendor": "Nokia",
+          "model": "7220 IXR-D3",
+          "hardware_model": "7220 IXR-D3",
+          "serial_number": "Sim-LF02",
+          "os_version": "24.10.1",
+          "uptime_seconds": 86400,
+          "fqdn": "leaf-02.lab"
+        },
+        "interfaces": {
+          "ethernet-1/1": {
+            "name": "ethernet-1/1",
+            "mac_address": "aa:c1:ab:00:04:01",
+            "ip_addresses": ["10.1.2.2"],
+            "speed_mbps": 25000,
+            "is_up": true,
+            "mtu": 9232,
+            "description": "to spine-01",
+            "is_lag": false,
+            "lag_parent": null,
+            "lag_members": []
+          },
+          "ethernet-1/2": {
+            "name": "ethernet-1/2",
+            "mac_address": "aa:c1:ab:00:04:02",
+            "ip_addresses": ["10.1.4.2"],
+            "speed_mbps": 25000,
+            "is_up": true,
+            "mtu": 9232,
+            "description": "to spine-02",
+            "is_lag": false,
+            "lag_parent": null,
+            "lag_members": []
+          },
+          "ethernet-1/3": {
+            "name": "ethernet-1/3",
+            "mac_address": "aa:c1:ab:00:04:03",
+            "ip_addresses": ["10.1.5.2"],
+            "speed_mbps": 25000,
+            "is_up": true,
+            "mtu": 9232,
+            "description": "peer link to leaf-01",
+            "is_lag": false,
+            "lag_parent": null,
+            "lag_members": []
+          },
+          "mgmt0": {
+            "name": "mgmt0",
+            "mac_address": "aa:c1:ab:00:04:00",
+            "ip_addresses": ["172.20.20.5"],
+            "speed_mbps": 1000,
+            "is_up": true,
+            "mtu": 1500,
+            "description": "management",
+            "is_lag": false,
+            "lag_parent": null,
+            "lag_members": []
+          }
+        },
+        "known_macs": ["aa:c1:ab:00:04:00", "aa:c1:ab:00:04:01", "aa:c1:ab:00:04:02", "aa:c1:ab:00:04:03"],
+        "known_ips": ["10.1.2.2", "10.1.4.2", "10.1.5.2", "172.20.20.5"],
+        "shared_macs": [],
+        "shared_ips": []
+      }
+    },
+    "links": [
+      {
+        "local_device": "leaf-01",
+        "local_interface": "lag1",
+        "remote_device": "spine-01",
+        "remote_interface": "lag1",
+        "link_type": "lag",
+        "sources": ["lldp"],
+        "members": [
+          {
+            "local_device": "leaf-01",
+            "local_interface": "ethernet-1/1",
+            "remote_device": "spine-01",
+            "remote_interface": "ethernet-1/1",
+            "link_type": "physical",
+            "sources": ["lldp"],
+            "members": [],
+            "remote_mac": "aa:c1:ab:00:01:01",
+            "remote_ip": "10.1.1.1",
+            "speed_mbps": 25000
+          },
+          {
+            "local_device": "leaf-01",
+            "local_interface": "ethernet-1/2",
+            "remote_device": "spine-01",
+            "remote_interface": "ethernet-1/2",
+            "link_type": "physical",
+            "sources": ["lldp"],
+            "members": [],
+            "remote_mac": "aa:c1:ab:00:01:02",
+            "remote_ip": "10.1.1.5",
+            "speed_mbps": 25000
+          }
+        ],
+        "remote_mac": null,
+        "remote_ip": null,
+        "speed_mbps": null
+      },
+      {
+        "local_device": "leaf-01",
+        "local_interface": "ethernet-1/3",
+        "remote_device": "spine-02",
+        "remote_interface": "ethernet-1/1",
+        "link_type": "physical",
+        "sources": ["lldp", "route_table"],
+        "members": [],
+        "remote_mac": "aa:c1:ab:00:02:01",
+        "remote_ip": "10.1.3.1",
+        "speed_mbps": 25000
+      },
+      {
+        "local_device": "leaf-02",
+        "local_interface": "ethernet-1/1",
+        "remote_device": "spine-01",
+        "remote_interface": "ethernet-1/3",
+        "link_type": "physical",
+        "sources": ["lldp", "route_table"],
+        "members": [],
+        "remote_mac": "aa:c1:ab:00:01:03",
+        "remote_ip": "10.1.2.1",
+        "speed_mbps": 25000
+      },
+      {
+        "local_device": "leaf-02",
+        "local_interface": "ethernet-1/2",
+        "remote_device": "spine-02",
+        "remote_interface": "ethernet-1/2",
+        "link_type": "physical",
+        "sources": ["lldp", "route_table"],
+        "members": [],
+        "remote_mac": "aa:c1:ab:00:02:02",
+        "remote_ip": "10.1.4.1",
+        "speed_mbps": 25000
+      },
+      {
+        "local_device": "leaf-01",
+        "local_interface": "ethernet-1/4",
+        "remote_device": "leaf-02",
+        "remote_interface": "ethernet-1/3",
+        "link_type": "physical",
+        "sources": ["lldp", "route_table"],
+        "members": [],
+        "remote_mac": "aa:c1:ab:00:04:03",
+        "remote_ip": "10.1.5.2",
+        "speed_mbps": 25000
+      }
+    ],
+    "raw_records": [
+      {
+        "local_device": "spine-01",
+        "local_interface": "ethernet-1/1",
+        "remote_device": "leaf-01",
+        "remote_interface": "ethernet-1/1",
+        "remote_mac": "aa:c1:ab:00:03:01",
+        "remote_ip": null,
+        "remote_platform": "Nokia SR Linux",
+        "source": "lldp"
+      },
+      {
+        "local_device": "spine-01",
+        "local_interface": "ethernet-1/2",
+        "remote_device": "leaf-01",
+        "remote_interface": "ethernet-1/2",
+        "remote_mac": "aa:c1:ab:00:03:02",
+        "remote_ip": null,
+        "remote_platform": "Nokia SR Linux",
+        "source": "lldp"
+      },
+      {
+        "local_device": "spine-01",
+        "local_interface": "ethernet-1/3",
+        "remote_device": "leaf-02",
+        "remote_interface": "ethernet-1/1",
+        "remote_mac": "aa:c1:ab:00:04:01",
+        "remote_ip": null,
+        "remote_platform": "Nokia SR Linux",
+        "source": "lldp"
+      },
+      {
+        "local_device": "leaf-01",
+        "local_interface": "ethernet-1/1",
+        "remote_device": "spine-01",
+        "remote_interface": "ethernet-1/1",
+        "remote_mac": "aa:c1:ab:00:01:01",
+        "remote_ip": null,
+        "remote_platform": "Nokia SR Linux",
+        "source": "lldp"
+      },
+      {
+        "local_device": "leaf-01",
+        "local_interface": "ethernet-1/3",
+        "remote_device": "spine-02",
+        "remote_interface": "ethernet-1/1",
+        "remote_mac": "aa:c1:ab:00:02:01",
+        "remote_ip": null,
+        "remote_platform": "Nokia SR Linux",
+        "source": "lldp"
+      },
+      {
+        "local_device": "leaf-01",
+        "local_interface": "ethernet-1/4",
+        "remote_device": "leaf-02",
+        "remote_interface": "ethernet-1/3",
+        "remote_mac": "aa:c1:ab:00:04:03",
+        "remote_ip": null,
+        "remote_platform": "Nokia SR Linux",
+        "source": "lldp"
+      },
+      {
+        "local_device": "leaf-02",
+        "local_interface": "ethernet-1/1",
+        "remote_device": "spine-01",
+        "remote_interface": "ethernet-1/3",
+        "remote_mac": "aa:c1:ab:00:01:03",
+        "remote_ip": null,
+        "remote_platform": "Nokia SR Linux",
+        "source": "lldp"
+      },
+      {
+        "local_device": "leaf-02",
+        "local_interface": "ethernet-1/2",
+        "remote_device": "spine-02",
+        "remote_interface": "ethernet-1/2",
+        "remote_mac": "aa:c1:ab:00:02:02",
+        "remote_ip": null,
+        "remote_platform": "Nokia SR Linux",
+        "source": "lldp"
+      },
+      {
+        "local_device": "leaf-02",
+        "local_interface": "ethernet-1/3",
+        "remote_device": "leaf-01",
+        "remote_interface": "ethernet-1/4",
+        "remote_mac": "aa:c1:ab:00:03:04",
+        "remote_ip": null,
+        "remote_platform": "Nokia SR Linux",
+        "source": "lldp"
+      },
+      {
+        "local_device": "spine-02",
+        "local_interface": "ethernet-1/1",
+        "remote_device": "leaf-01",
+        "remote_interface": "ethernet-1/3",
+        "remote_mac": "aa:c1:ab:00:03:03",
+        "remote_ip": null,
+        "remote_platform": "Nokia SR Linux",
+        "source": "lldp"
+      },
+      {
+        "local_device": "spine-02",
+        "local_interface": "ethernet-1/2",
+        "remote_device": "leaf-02",
+        "remote_interface": "ethernet-1/2",
+        "remote_mac": "aa:c1:ab:00:04:02",
+        "remote_ip": null,
+        "remote_platform": "Nokia SR Linux",
+        "source": "lldp"
+      },
+      {
+        "local_device": "spine-01",
+        "local_interface": "ethernet-1/3",
+        "remote_device": null,
+        "remote_interface": null,
+        "remote_mac": null,
+        "remote_ip": "10.1.2.2",
+        "remote_platform": null,
+        "source": "route_table"
+      },
+      {
+        "local_device": "leaf-01",
+        "local_interface": "ethernet-1/3",
+        "remote_device": null,
+        "remote_interface": null,
+        "remote_mac": null,
+        "remote_ip": "10.1.3.1",
+        "remote_platform": null,
+        "source": "route_table"
+      },
+      {
+        "local_device": "leaf-01",
+        "local_interface": "ethernet-1/4",
+        "remote_device": null,
+        "remote_interface": null,
+        "remote_mac": null,
+        "remote_ip": "10.1.5.2",
+        "remote_platform": null,
+        "source": "route_table"
+      },
+      {
+        "local_device": "leaf-02",
+        "local_interface": "ethernet-1/1",
+        "remote_device": null,
+        "remote_interface": null,
+        "remote_mac": null,
+        "remote_ip": "10.1.2.1",
+        "remote_platform": null,
+        "source": "route_table"
+      },
+      {
+        "local_device": "leaf-02",
+        "local_interface": "ethernet-1/2",
+        "remote_device": null,
+        "remote_interface": null,
+        "remote_mac": null,
+        "remote_ip": "10.1.4.1",
+        "remote_platform": null,
+        "source": "route_table"
+      }
+    ]
+  }
+}

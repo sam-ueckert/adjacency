@@ -6,6 +6,7 @@ from adjacency.collectors.facts import collect_facts
 from adjacency.collectors.interfaces import collect_interfaces
 from adjacency.collectors.lldp import collect_lldp_neighbors
 from adjacency.collectors.mac import collect_mac_table
+from adjacency.collectors.routes import collect_routes
 
 __all__ = [
     "collect_arp_table",
@@ -14,4 +15,5 @@ __all__ = [
     "collect_interfaces",
     "collect_lldp_neighbors",
     "collect_mac_table",
+    "collect_routes",
 ]

@@ -72,6 +72,7 @@ multiple sources:
 | MAC table | L2 forwarding: which MACs are reachable on which interface | `get_mac_address_table` |
 | ARP table | L3 neighbor: IP-to-MAC mappings per interface | `get_arp_table` |
 | Interfaces | Interface details, LAG membership, IP addresses, MACs | `get_interfaces`, `get_interfaces_ip` |
+| Route table | Adjacent L3 next-hops on connected subnets | `get_route_to` |
 | Facts | Vendor, model, serial, OS version, uptime, FQDN | `get_facts` |
 | Reverse DNS | PTR records for management and interface IPs | `socket.gethostbyaddr` |
 
@@ -84,8 +85,12 @@ adjacency graph:
 4. Bidirectional observations (A sees B, B sees A) are deduplicated
 5. Virtual/shared MACs (HSRP, VRRP, GLBP, MLAG) are excluded from identity resolution
 
-**Snapshots** persist discovery results for later review, comparison, and
-visualization.
+**Snapshots** are the core output of the platform.  Each discovery run
+produces a single snapshot — a self-contained JSON file that captures the
+full topology: every device, every rationalized link, and every raw
+observation.  Snapshots are what you load, visualize, query, and compare
+over time.  See [Section 6](#6-snapshots) for the complete format reference
+and an example from the included lab.
 
 ---
 
@@ -313,11 +318,209 @@ the `system_description` field to guess the NAPALM driver:
 
 ## 6. Snapshots
 
-Every `discover` run auto-saves a snapshot (disable with `--no-save`).
-Snapshots are stored as self-contained JSON files in `~/.adjacency/snapshots/`
-(override with `--snapshot-dir` or `$ADJACENCY_SNAPSHOT_DIR`).
+A snapshot is the primary output of every discovery run.  It is a single,
+self-contained JSON file that captures the complete network topology at a
+point in time: every discovered device, every rationalized adjacency link,
+and every raw neighbor observation that contributed to those links.
+Snapshots are what you load, visualize, compare, and share.
 
-### List snapshots
+A complete example generated from the included lab topology is available at
+[`docs/examples/lab-snapshot.json`](examples/lab-snapshot.json).
+
+### 6.1 Lifecycle
+
+Every `adjacency discover` run automatically saves a snapshot when it
+finishes (disable with `--no-save`).
+
+```
+adjacency discover --label dc1-full     # saved as "dc1-full"
+adjacency discover                       # saved with a random ID
+adjacency discover --no-save             # not saved
+```
+
+Snapshots are stored in `~/.adjacency/snapshots/` by default.  Override
+with `--snapshot-dir /path` or the `ADJACENCY_SNAPSHOT_DIR` environment
+variable.
+
+File names follow the pattern `{YYYYMMDDTHHmmss}_{id}.json`, so they sort
+chronologically.  The ID is derived from `--label` (slugified) or a random
+8-character hex string when no label is given.
+
+### 6.2 File format
+
+Each snapshot file is a JSON envelope with two top-level keys:
+
+```json
+{
+  "meta": { ... },
+  "data": { ... }
+}
+```
+
+**`meta`** — summary metadata for fast listing without parsing the full file:
+
+| Field | Description |
+|-------|-------------|
+| `snapshot_id` | Unique identifier (from `--label` or auto-generated) |
+| `created_at` | ISO-8601 UTC timestamp |
+| `adjacency_version` | Version of adjacency that created this snapshot |
+| `label` | Human-readable label (empty if none provided) |
+| `device_count` | Number of discovered devices |
+| `link_count` | Number of rationalized adjacency links |
+| `raw_record_count` | Number of raw neighbor observations |
+
+**`data`** — the full `AdjacencyTable`, containing three sections:
+
+#### `data.links` — the adjacency relationships
+
+This is the primary content of the snapshot: the rationalized list of
+device-to-device connections that the platform discovered.  Each link names
+the two endpoints (device and interface on each side), the link type, and
+which data sources provided evidence for it:
+
+```json
+{
+  "local_device": "leaf-01",
+  "local_interface": "ethernet-1/3",
+  "remote_device": "spine-02",
+  "remote_interface": "ethernet-1/1",
+  "link_type": "physical",
+  "sources": ["lldp", "route_table"],
+  "remote_mac": "aa:c1:ab:00:02:01",
+  "remote_ip": "10.1.3.1"
+}
+```
+
+This entry says: leaf-01's ethernet-1/3 is directly connected to
+spine-02's ethernet-1/1, and the connection was independently confirmed by
+both LLDP and a routing table next-hop.  The `sources` array is the audit
+trail — it tells you which collection methods contributed evidence for this
+specific adjacency.
+
+**LAG bundles** are represented as a single link with `link_type: "lag"`
+and a `members` array containing the constituent physical links:
+
+```json
+{
+  "local_device": "leaf-01",
+  "local_interface": "lag1",
+  "remote_device": "spine-01",
+  "remote_interface": "lag1",
+  "link_type": "lag",
+  "sources": ["lldp"],
+  "members": [
+    {
+      "local_device": "leaf-01",
+      "local_interface": "ethernet-1/1",
+      "remote_device": "spine-01",
+      "remote_interface": "ethernet-1/1",
+      "link_type": "physical",
+      "sources": ["lldp"],
+      "remote_mac": "aa:c1:ab:00:01:01",
+      "remote_ip": "10.1.1.1"
+    },
+    {
+      "local_device": "leaf-01",
+      "local_interface": "ethernet-1/2",
+      "remote_device": "spine-01",
+      "remote_interface": "ethernet-1/2",
+      "link_type": "physical",
+      "sources": ["lldp"],
+      "remote_mac": "aa:c1:ab:00:01:02",
+      "remote_ip": "10.1.1.5"
+    }
+  ]
+}
+```
+
+The rationalization engine detects that ethernet-1/1 and ethernet-1/2 are
+both LAG members (via the `lag_parent` field on each interface) pointing at
+the same remote device, and collapses them into a single LAG link.  The
+physical member links are preserved inside `members` for reference.
+
+#### `data.devices` — the device inventory
+
+A dictionary keyed by hostname.  Each device includes management IP,
+platform, vendor, hardware facts, serial number, and a full interface
+inventory with MAC addresses, IP addresses, LAG membership, and link speed:
+
+```json
+"leaf-01": {
+  "hostname": "leaf-01",
+  "platform": "srlinux",
+  "management_ip": "172.20.20.4",
+  "vendor": "Nokia",
+  "model": "7220 IXR-D3",
+  "hardware": {
+    "serial_number": "Sim-LF01",
+    "os_version": "24.10.1",
+    "fqdn": "leaf-01.lab"
+  },
+  "interfaces": {
+    "ethernet-1/1": {
+      "name": "ethernet-1/1",
+      "mac_address": "aa:c1:ab:00:03:01",
+      "ip_addresses": ["10.1.1.2"],
+      "speed_mbps": 25000,
+      "is_up": true,
+      "lag_parent": "lag1"
+    }
+  },
+  "known_macs": ["aa:c1:ab:00:03:01", "..."],
+  "known_ips": ["10.1.1.2", "172.20.20.4", "..."]
+}
+```
+
+The `known_macs` and `known_ips` sets are used during rationalization to
+resolve raw records that only carry a MAC or IP back to the device that
+owns them.  The `interfaces` dict provides the per-interface detail that
+powers LAG detection and subnet-based route filtering.
+
+#### `data.raw_records` — the pre-rationalization evidence
+
+Every individual neighbor observation collected from the network, before
+any merging or deduplication.  Each record is tagged with its `source` —
+the collection method that produced it (`lldp`, `cdp`, `mac_table`,
+`arp_table`, `route_table`).
+
+Raw records are the input to the rationalization pipeline.  They are kept
+in the snapshot for audit and debugging so you can trace exactly how each
+link in `data.links` was derived.
+
+An LLDP record identifies the remote end by hostname and interface:
+
+```json
+{
+  "local_device": "spine-01",
+  "local_interface": "ethernet-1/3",
+  "remote_device": "leaf-02",
+  "remote_interface": "ethernet-1/1",
+  "remote_mac": "aa:c1:ab:00:04:01",
+  "source": "lldp"
+}
+```
+
+A route table record only carries a next-hop IP — no hostname or interface:
+
+```json
+{
+  "local_device": "spine-01",
+  "local_interface": "ethernet-1/3",
+  "remote_device": null,
+  "remote_ip": "10.1.2.2",
+  "source": "route_table"
+}
+```
+
+During rationalization, the IP `10.1.2.2` is looked up in the identity
+index (built from `known_ips` across all devices), resolved to leaf-02, and
+the record merges with the LLDP evidence for the same link.  The final
+link in `data.links` then carries `"sources": ["lldp", "route_table"]`,
+showing that two independent methods confirmed the adjacency.
+
+### 6.3 Managing snapshots
+
+**List:**
 
 ```bash
 adjacency snapshot list
@@ -332,51 +535,51 @@ adjacency snapshot list
 └──────────┴─────────────────────┴───────────┴─────────┴───────┴─────────┘
 ```
 
-### Load and display a snapshot
+**Load and display:**
 
 ```bash
-# By ID
-adjacency snapshot load a1b2c3d4
-
-# By label (substring match)
-adjacency snapshot load dc1
-
-# With raw records
-adjacency snapshot load dc1 --raw
-
-# As JSON
+adjacency snapshot load dc1              # by label (substring match)
+adjacency snapshot load a1b2c3d4         # by ID
+adjacency snapshot load dc1 --raw        # include raw records
 adjacency snapshot load dc1 --json > export.json
 ```
 
-### Delete a snapshot
+**Delete:**
 
 ```bash
 adjacency snapshot delete a1b2c3d4
-adjacency snapshot delete dc1 --yes   # skip confirmation
+adjacency snapshot delete dc1 --yes      # skip confirmation
 ```
 
-### Snapshot file format
+### 6.4 Working with snapshot data
 
-Each file is a JSON envelope:
+Load any snapshot JSON file directly — it does not need to live in the
+snapshot directory:
 
-```json
-{
-  "meta": {
-    "snapshot_id": "dc1-full",
-    "created_at": "2026-03-15T14:30:00+00:00",
-    "adjacency_version": "0.1.0",
-    "inventory_path": "inventory",
-    "label": "dc1-full",
-    "device_count": 42,
-    "link_count": 87,
-    "raw_record_count": 312
-  },
-  "data": { ... }
-}
+```bash
+adjacency show docs/examples/lab-snapshot.json
+adjacency show docs/examples/lab-snapshot.json --json | jq '.devices | keys'
 ```
 
-The `data` key contains the full `AdjacencyTable` (devices, links, raw
-records) and can be loaded independently with `adjacency show <file>`.
+Visualize from a saved snapshot by label or ID:
+
+```bash
+adjacency visualize lab
+adjacency visualize dc1-full -o dc1.html
+```
+
+Query snapshot files with standard JSON tools:
+
+```bash
+# List all device hostnames
+jq '.data.devices | keys' snapshot.json
+
+# Count links by type
+jq '[.data.links[].link_type] | group_by(.) | map({(.[0]): length}) | add' snapshot.json
+
+# Show all data sources that contributed evidence
+jq '[.data.raw_records[].source] | unique' snapshot.json
+```
 
 ---
 

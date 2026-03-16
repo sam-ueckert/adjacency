@@ -15,6 +15,7 @@ class DataSource(str, Enum):
     CDP = "cdp"
     MAC_TABLE = "mac_table"
     ARP_TABLE = "arp_table"
+    ROUTE_TABLE = "route_table"
     INTERFACE = "interface"
     MANUAL = "manual"
 

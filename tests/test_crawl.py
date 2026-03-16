@@ -83,6 +83,7 @@ class TestCollectDevice:
             },
         }
         drv.get_interfaces_ip.return_value = {
+            "Ethernet1": {"ipv4": {"10.1.0.1": {"prefix_length": 30}}},
             "Management1": {"ipv4": {"10.0.0.1": {"prefix_length": 24}}},
         }
         drv.get_lldp_neighbors_detail.return_value = {
@@ -102,6 +103,14 @@ class TestCollectDevice:
             {"interface": "Ethernet1", "mac": "11:22:33:44:55:66",
              "ip": "10.0.1.1", "age": 300.0},
         ]
+        drv.get_route_to.return_value = {
+            "10.0.1.0/24": [{"protocol": "ospf", "current_active": True, "age": 600,
+                             "next_hop": "10.1.0.2", "outgoing_interface": "Ethernet1",
+                             "preference": 110}],
+            "10.1.0.0/30": [{"protocol": "connected", "current_active": True, "age": 0,
+                             "next_hop": "", "outgoing_interface": "Ethernet1",
+                             "preference": 0}],
+        }
         return drv
 
     def test_builds_device(self):
@@ -158,7 +167,47 @@ class TestCollectDevice:
         drv = self._mock_driver()
         _, records, _ = _collect_device(
             drv, "10.0.0.1", collect_l2=False, collect_l3=False, collect_cdp=False,
+            collect_routes=False,
         )
         # Only LLDP records should remain
         sources = {r.source for r in records}
         assert sources == {DataSource.LLDP}
+
+    def test_collects_route_records(self):
+        drv = self._mock_driver()
+        _, records, next_hops = _collect_device(drv, "10.0.0.1")
+        route = [r for r in records if r.source == DataSource.ROUTE_TABLE]
+        # One OSPF route next-hop (connected routes are filtered out)
+        assert len(route) == 1
+        assert route[0].remote_ip == "10.1.0.2"
+
+    def test_route_nexthop_becomes_crawl_target(self):
+        drv = self._mock_driver()
+        _, _, next_hops = _collect_device(drv, "10.0.0.1")
+        route_ips = {h.ip for h in next_hops if h.hostname is None}
+        # 10.1.0.2 is on the 10.1.0.0/30 connected subnet, so it IS reachable
+        assert "10.1.0.2" in route_ips
+
+    def test_remote_route_nexthop_not_crawl_target(self):
+        drv = self._mock_driver()
+        # Add a route whose next-hop is NOT on a connected subnet
+        drv.get_route_to.return_value["172.16.0.0/16"] = [
+            {"protocol": "bgp", "current_active": True, "age": 100,
+             "next_hop": "192.168.99.1", "outgoing_interface": "Ethernet1",
+             "preference": 200},
+        ]
+        _, records, next_hops = _collect_device(drv, "10.0.0.1")
+        crawl_ips = {h.ip for h in next_hops}
+        route_ips = {r.remote_ip for r in records if r.source == DataSource.ROUTE_TABLE}
+        # 192.168.99.1 is NOT on any connected subnet — should be excluded
+        # from both crawl targets AND neighbor records (not adjacent)
+        assert "192.168.99.1" not in crawl_ips
+        assert "192.168.99.1" not in route_ips
+
+    def test_skip_routes(self):
+        drv = self._mock_driver()
+        _, records, next_hops = _collect_device(
+            drv, "10.0.0.1", collect_routes=False,
+        )
+        route = [r for r in records if r.source == DataSource.ROUTE_TABLE]
+        assert len(route) == 0

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 
 from nornir import InitNornir
@@ -13,6 +14,7 @@ from adjacency.collectors import (
     collect_interfaces,
     collect_lldp_neighbors,
     collect_mac_table,
+    collect_routes,
 )
 from adjacency.collectors.facts import (
     collect_facts,
@@ -41,12 +43,13 @@ def init_nornir(inventory_dir: Path) -> Nornir:
     return nr
 
 
-def discover(
+async def discover(
     inventory_dir: Path,
     *,
     collect_l2: bool = True,
     collect_l3: bool = True,
     collect_cdp: bool = True,
+    collect_route_table: bool = True,
     collect_hw_facts: bool = True,
     do_rdns: bool = True,
 ) -> AdjacencyTable:
@@ -62,6 +65,8 @@ def discover(
         Collect ARP tables.
     collect_cdp:
         Attempt CDP collection (in addition to LLDP which is always collected).
+    collect_route_table:
+        Collect routing table and use next-hops for L3 adjacency.
     collect_hw_facts:
         Collect hardware/software facts via NAPALM get_facts.
     do_rdns:
@@ -69,24 +74,26 @@ def discover(
     """
     nr = init_nornir(inventory_dir)
 
-    # Always collect interfaces and LLDP
-    devices: dict[str, Device] = collect_interfaces(nr)
-    records: list[NeighborRecord] = collect_lldp_neighbors(nr)
+    # Always collect interfaces and LLDP (blocking Nornir calls offloaded to threads)
+    devices: dict[str, Device] = await asyncio.to_thread(collect_interfaces, nr)
+    records: list[NeighborRecord] = await asyncio.to_thread(collect_lldp_neighbors, nr)
 
     if collect_cdp:
-        records.extend(collect_cdp_neighbors(nr))
+        records.extend(await asyncio.to_thread(collect_cdp_neighbors, nr))
     if collect_l2:
-        records.extend(collect_mac_table(nr))
+        records.extend(await asyncio.to_thread(collect_mac_table, nr))
     if collect_l3:
-        records.extend(collect_arp_table(nr))
+        records.extend(await asyncio.to_thread(collect_arp_table, nr))
+    if collect_route_table:
+        records.extend(await asyncio.to_thread(collect_routes, nr))
 
     # Enrich with hardware facts
     if collect_hw_facts:
-        facts = collect_facts(nr)
+        facts = await asyncio.to_thread(collect_facts, nr)
         enrich_devices_with_facts(devices, facts)
 
-    # Enrich with reverse DNS
+    # Enrich with reverse DNS (natively async)
     if do_rdns:
-        enrich_devices_with_rdns(devices)
+        await enrich_devices_with_rdns(devices)
 
     return rationalize(devices, records)

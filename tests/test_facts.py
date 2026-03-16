@@ -1,6 +1,6 @@
 """Tests for hardware facts enrichment and reverse DNS."""
 
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 from adjacency.collectors.facts import enrich_devices_with_facts, enrich_devices_with_rdns
 from adjacency.models import Device, HardwareFacts
@@ -53,37 +53,37 @@ class TestFactsEnrichment:
 
 
 class TestReverseDNS:
-    @patch("adjacency.collectors.facts._reverse_lookup")
-    def test_enriches_dns_names(self, mock_lookup):
+    @patch("adjacency.collectors.facts._reverse_lookup", new_callable=AsyncMock)
+    async def test_enriches_dns_names(self, mock_lookup):
         mock_lookup.return_value = "switch-01.example.com"
         devices = {"sw1": _make_device("sw1", management_ip="10.0.0.1")}
-        enrich_devices_with_rdns(devices)
+        await enrich_devices_with_rdns(devices)
         assert "switch-01.example.com" in devices["sw1"].dns_names
 
-    @patch("adjacency.collectors.facts._reverse_lookup")
-    def test_no_result_leaves_empty(self, mock_lookup):
+    @patch("adjacency.collectors.facts._reverse_lookup", new_callable=AsyncMock)
+    async def test_no_result_leaves_empty(self, mock_lookup):
         mock_lookup.return_value = None
         devices = {"sw1": _make_device("sw1", management_ip="10.0.0.1")}
-        enrich_devices_with_rdns(devices)
+        await enrich_devices_with_rdns(devices)
         assert devices["sw1"].dns_names == []
 
-    @patch("adjacency.collectors.facts._reverse_lookup")
-    def test_multiple_ips_multiple_names(self, mock_lookup):
+    @patch("adjacency.collectors.facts._reverse_lookup", new_callable=AsyncMock)
+    async def test_multiple_ips_multiple_names(self, mock_lookup):
         def side_effect(ip):
             return {"10.0.0.1": "mgmt.example.com", "192.168.1.1": "data.example.com"}.get(ip)
         mock_lookup.side_effect = side_effect
         devices = {
             "sw1": _make_device("sw1", management_ip="10.0.0.1", ips={"192.168.1.1"}),
         }
-        enrich_devices_with_rdns(devices)
+        await enrich_devices_with_rdns(devices)
         assert "mgmt.example.com" in devices["sw1"].dns_names
         assert "data.example.com" in devices["sw1"].dns_names
 
-    @patch("adjacency.collectors.facts._reverse_lookup")
-    def test_deduplicates_dns_names(self, mock_lookup):
+    @patch("adjacency.collectors.facts._reverse_lookup", new_callable=AsyncMock)
+    async def test_deduplicates_dns_names(self, mock_lookup):
         mock_lookup.return_value = "same.example.com"
         devices = {
             "sw1": _make_device("sw1", management_ip="10.0.0.1", ips={"10.0.0.2"}),
         }
-        enrich_devices_with_rdns(devices)
+        await enrich_devices_with_rdns(devices)
         assert devices["sw1"].dns_names.count("same.example.com") == 1

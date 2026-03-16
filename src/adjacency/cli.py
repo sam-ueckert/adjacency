@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import sys
 from datetime import datetime
@@ -67,6 +68,7 @@ def main(ctx: click.Context, inventory: Path | None, snapshot_dir: Path | None, 
 @click.option("--no-l2", is_flag=True, help="Skip MAC table collection.")
 @click.option("--no-l3", is_flag=True, help="Skip ARP table collection.")
 @click.option("--no-cdp", is_flag=True, help="Skip CDP collection.")
+@click.option("--no-routes", is_flag=True, help="Skip route table collection.")
 @click.option("--no-facts", is_flag=True, help="Skip hardware facts collection.")
 @click.option("--no-rdns", is_flag=True, help="Skip reverse DNS lookups.")
 @click.option("--no-save", is_flag=True, help="Do not auto-save a snapshot.")
@@ -84,6 +86,7 @@ def discover(
     no_l2: bool,
     no_l3: bool,
     no_cdp: bool,
+    no_routes: bool,
     no_facts: bool,
     no_rdns: bool,
     no_save: bool,
@@ -119,7 +122,7 @@ def discover(
         # ---- Crawl mode ----
         table = _run_crawl(
             seeds, credentials, depth, timeout, max_workers,
-            not no_l2, not no_l3, not no_cdp, not no_rdns,
+            not no_l2, not no_l3, not no_cdp, not no_routes, not no_rdns,
         )
     else:
         # ---- Inventory mode ----
@@ -137,7 +140,7 @@ def discover(
 
         table = _run_inventory(
             inventory,
-            not no_l2, not no_l3, not no_cdp, not no_facts, not no_rdns,
+            not no_l2, not no_l3, not no_cdp, not no_routes, not no_facts, not no_rdns,
         )
 
     # ---- Output ----
@@ -170,6 +173,7 @@ def _run_inventory(
     collect_l2: bool,
     collect_l3: bool,
     collect_cdp: bool,
+    collect_routes: bool,
     collect_hw_facts: bool,
     do_rdns: bool,
 ):
@@ -177,14 +181,15 @@ def _run_inventory(
     from adjacency.collector import discover as inv_discover
 
     console.print(f"[bold]Discovering adjacencies from inventory[/] {inventory} ...")
-    return inv_discover(
+    return asyncio.run(inv_discover(
         inventory,
         collect_l2=collect_l2,
         collect_l3=collect_l3,
         collect_cdp=collect_cdp,
+        collect_route_table=collect_routes,
         collect_hw_facts=collect_hw_facts,
         do_rdns=do_rdns,
-    )
+    ))
 
 
 def _run_crawl(
@@ -196,6 +201,7 @@ def _run_crawl(
     collect_l2: bool,
     collect_l3: bool,
     collect_cdp: bool,
+    collect_routes: bool,
     do_rdns: bool,
 ):
     """Crawl-mode discovery starting from seed devices."""
@@ -231,7 +237,7 @@ def _run_crawl(
         plat = f" ({seed.platform})" if seed.platform else ""
         console.print(f"  [cyan]{seed.host}[/]{plat}")
 
-    return crawl(
+    return asyncio.run(crawl(
         parsed_seeds,
         cred_store,
         max_depth=depth,
@@ -239,9 +245,10 @@ def _run_crawl(
         collect_l2=collect_l2,
         collect_l3=collect_l3,
         collect_cdp=collect_cdp,
+        collect_routes=collect_routes,
         do_rdns=do_rdns,
         timeout=timeout,
-    )
+    ))
 
 
 # ---------------------------------------------------------------------------
