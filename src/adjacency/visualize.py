@@ -1,10 +1,14 @@
-"""Visualization generators — interactive HTML (cytoscape.js) and GraphViz DOT."""
+"""Visualization generators — interactive HTML (cytoscape.js), GraphViz DOT, and Lucidchart."""
 
 from __future__ import annotations
 
 import hashlib
 import json
+import math
+import urllib.request
+import zipfile
 from dataclasses import dataclass, field
+from io import BytesIO
 from pathlib import Path
 
 from adjacency.models import AdjacencyTable, LinkType
@@ -394,3 +398,172 @@ def generate_dot(
         Path(output_path).write_text(dot_text)
 
     return dot_text
+
+
+# ---------------------------------------------------------------------------
+# Lucidchart Standard Import (.lucid) generation
+# ---------------------------------------------------------------------------
+
+_LUCID_SHAPE_W = 200
+_LUCID_SHAPE_H = 120
+_LUCID_PAD_X = 80
+_LUCID_PAD_Y = 60
+_LUCID_CLUSTER_GAP = 200
+
+
+def _grid_layout(nodes: list[GraphNode]) -> dict[str, tuple[float, float]]:
+    """Compute (x, y) positions for nodes, grouped by platform in a grid."""
+    by_platform: dict[str, list[GraphNode]] = {}
+    for n in nodes:
+        by_platform.setdefault(n.platform or "unknown", []).append(n)
+
+    positions: dict[str, tuple[float, float]] = {}
+    # Max nodes per row within a platform cluster
+    cols = max(4, int(math.ceil(math.sqrt(len(nodes)))))
+    y_offset = 0.0
+
+    for _plat, plat_nodes in sorted(by_platform.items()):
+        for i, n in enumerate(plat_nodes):
+            col = i % cols
+            row = i // cols
+            x = col * (_LUCID_SHAPE_W + _LUCID_PAD_X)
+            y = y_offset + row * (_LUCID_SHAPE_H + _LUCID_PAD_Y)
+            positions[n.id] = (x, y)
+        rows_used = math.ceil(len(plat_nodes) / cols) if plat_nodes else 1
+        y_offset += rows_used * (_LUCID_SHAPE_H + _LUCID_PAD_Y) + _LUCID_CLUSTER_GAP
+
+    return positions
+
+
+def generate_lucid(
+    table: AdjacencyTable,
+    output_path: Path,
+    title: str = "Adjacency Map",
+) -> Path:
+    """Generate a Lucidchart Standard Import (.lucid) file."""
+    nodes, edges = _build_graph_data(table)
+    positions = _grid_layout(nodes)
+
+    shapes = []
+    for n in nodes:
+        x, y = positions[n.id]
+        label_parts = [n.label]
+        if n.management_ip:
+            label_parts.append(n.management_ip)
+        if n.hardware_model:
+            label_parts.append(n.hardware_model)
+        if n.platform:
+            label_parts.append(n.platform)
+
+        color = n.color or _platform_color(n.platform)
+        shapes.append({
+            "id": n.id,
+            "type": "rectangle",
+            "boundingBox": {"x": x, "y": y, "w": _LUCID_SHAPE_W, "h": _LUCID_SHAPE_H},
+            "text": "\n".join(label_parts),
+            "style": {
+                "fill": {"type": "color", "color": color},
+                "stroke": {"color": "#333333", "width": 2, "style": "solid"},
+                "rounding": 8,
+            },
+        })
+
+    lines_list = []
+    for e in edges:
+        label_parts = []
+        if e.target_intf:
+            label_parts.append(f"{e.source_intf} -- {e.target_intf}")
+        else:
+            label_parts.append(e.source_intf)
+        if e.link_type == "lag" and e.member_count:
+            label_parts.append(f"LAG x{e.member_count}")
+        elif e.link_type == "logical":
+            label_parts.append("logical")
+
+        line_style = "solid"
+        line_color = "#78909C"
+        if e.link_type == "lag":
+            line_color = "#4fc3f7"
+        elif e.link_type == "logical":
+            line_style = "dashed"
+            line_color = "#81c784"
+
+        lines_list.append({
+            "id": e.id,
+            "type": "line",
+            "endpoint1": {"type": "shapeEndpoint", "shapeId": e.source},
+            "endpoint2": {"type": "shapeEndpoint", "shapeId": e.target},
+            "text": "\n".join(label_parts),
+            "style": {
+                "stroke": {"color": line_color, "width": 2, "style": line_style},
+            },
+        })
+
+    document = {
+        "version": 1,
+        "pages": [{
+            "id": "page1",
+            "title": title,
+            "shapes": shapes,
+            "lines": lines_list,
+        }],
+    }
+
+    output_path = Path(output_path)
+    buf = BytesIO()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr("document.json", json.dumps(document, indent=2))
+    output_path.write_bytes(buf.getvalue())
+    return output_path
+
+
+def push_lucid(
+    lucid_path: Path,
+    api_key: str,
+    title: str = "Adjacency Map",
+) -> str:
+    """Upload a .lucid file to Lucidchart via the Standard Import API.
+
+    Returns the edit URL of the created document.
+    """
+    lucid_path = Path(lucid_path)
+    file_data = lucid_path.read_bytes()
+
+    # Build multipart/form-data request
+    boundary = "----AdjacencyLucidBoundary"
+    body = bytearray()
+
+    # File part
+    body.extend(f"--{boundary}\r\n".encode())
+    body.extend(
+        f'Content-Disposition: form-data; name="file"; filename="{lucid_path.name}"\r\n'.encode()
+    )
+    body.extend(b"Content-Type: x-application/vnd.lucid.standardImport\r\n\r\n")
+    body.extend(file_data)
+    body.extend(b"\r\n")
+
+    # Title part
+    body.extend(f"--{boundary}\r\n".encode())
+    body.extend(b'Content-Disposition: form-data; name="title"\r\n\r\n')
+    body.extend(title.encode())
+    body.extend(b"\r\n")
+
+    # Product part
+    body.extend(f"--{boundary}\r\n".encode())
+    body.extend(b'Content-Disposition: form-data; name="product"\r\n\r\n')
+    body.extend(b"lucidchart\r\n")
+
+    body.extend(f"--{boundary}--\r\n".encode())
+
+    req = urllib.request.Request(
+        "https://api.lucid.co/v1/documents",
+        data=bytes(body),
+        headers={
+            "Authorization": f"Bearer {api_key}",
+            "Content-Type": f"multipart/form-data; boundary={boundary}",
+        },
+        method="POST",
+    )
+    with urllib.request.urlopen(req) as resp:
+        result = json.loads(resp.read())
+    return result.get("editUrl", result.get("documentId", ""))

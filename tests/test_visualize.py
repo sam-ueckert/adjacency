@@ -11,7 +11,7 @@ from adjacency.models import (
     InterfaceInfo,
     LinkType,
 )
-from adjacency.visualize import generate_dot, generate_html, _platform_color
+from adjacency.visualize import generate_dot, generate_html, generate_lucid, _platform_color
 
 
 def _sample_table() -> AdjacencyTable:
@@ -182,3 +182,76 @@ class TestDOTGeneration:
         table = _sample_table()
         dot = generate_dot(table, tmp_path / "test.dot")
         assert "spine-01.dc1.example.com" in dot
+
+
+class TestLucidGeneration:
+    def _load_doc(self, path):
+        import json, zipfile
+        with zipfile.ZipFile(path) as zf:
+            return json.loads(zf.read("document.json"))
+
+    def test_generates_valid_zip(self, tmp_path):
+        import zipfile
+        table = _sample_table()
+        out = tmp_path / "test.lucid"
+        result = generate_lucid(table, out)
+        assert result.exists()
+        with zipfile.ZipFile(result) as zf:
+            assert "document.json" in zf.namelist()
+
+    def test_document_json_schema(self, tmp_path):
+        table = _sample_table()
+        out = tmp_path / "test.lucid"
+        generate_lucid(table, out)
+        doc = self._load_doc(out)
+        assert doc["version"] == 1
+        assert len(doc["pages"]) == 1
+        page = doc["pages"][0]
+        assert "shapes" in page
+        assert "lines" in page
+
+    def test_contains_all_nodes(self, tmp_path):
+        table = _sample_table()
+        out = tmp_path / "test.lucid"
+        generate_lucid(table, out)
+        doc = self._load_doc(out)
+        shape_texts = [s["text"] for s in doc["pages"][0]["shapes"]]
+        all_text = "\n".join(shape_texts)
+        assert "spine-01" in all_text
+        assert "spine-02" in all_text
+        assert "leaf-01" in all_text
+
+    def test_contains_edges(self, tmp_path):
+        table = _sample_table()
+        out = tmp_path / "test.lucid"
+        generate_lucid(table, out)
+        doc = self._load_doc(out)
+        line_texts = [ln["text"] for ln in doc["pages"][0]["lines"]]
+        all_text = "\n".join(line_texts)
+        assert "Ethernet1/49" in all_text
+        assert "Port-Channel1" in all_text
+
+    def test_platform_colors_applied(self, tmp_path):
+        table = _sample_table()
+        out = tmp_path / "test.lucid"
+        generate_lucid(table, out)
+        doc = self._load_doc(out)
+        shapes = {s["text"].split("\n")[0]: s for s in doc["pages"][0]["shapes"]}
+        assert shapes["spine-01"]["style"]["fill"]["color"] == _platform_color("eos")
+        assert shapes["leaf-01"]["style"]["fill"]["color"] == _platform_color("nxos_ssh")
+
+    def test_lag_edge_label(self, tmp_path):
+        table = _sample_table()
+        out = tmp_path / "test.lucid"
+        generate_lucid(table, out)
+        doc = self._load_doc(out)
+        line_texts = [ln["text"] for ln in doc["pages"][0]["lines"]]
+        assert any("LAG x2" in t for t in line_texts)
+
+    def test_hardware_in_shape(self, tmp_path):
+        table = _sample_table()
+        out = tmp_path / "test.lucid"
+        generate_lucid(table, out)
+        doc = self._load_doc(out)
+        all_text = "\n".join(s["text"] for s in doc["pages"][0]["shapes"])
+        assert "DCS-7050TX-48-R" in all_text

@@ -388,13 +388,15 @@ def snapshot_delete(ctx: click.Context, identifier: str, yes: bool) -> None:
 
 @main.command()
 @click.argument("source", required=False)
-@click.option("--format", "-f", "fmt", type=click.Choice(["html", "dot"]), default="html",
+@click.option("--format", "-f", "fmt", type=click.Choice(["html", "dot", "lucid"]), default="html",
               help="Output format.")
 @click.option("--output", "-o", type=click.Path(path_type=Path), default=None,
               help="Output file path.")
 @click.option("--title", "-t", default="Adjacency Map", help="Title for HTML output.")
+@click.option("--api-key", envvar="LUCID_API_KEY", default=None,
+              help="Lucidchart API key for direct upload (lucid format only).")
 @click.pass_context
-def visualize(ctx: click.Context, source: str | None, fmt: str, output: Path | None, title: str) -> None:
+def visualize(ctx: click.Context, source: str | None, fmt: str, output: Path | None, title: str, api_key: str | None) -> None:
     """Generate a topology visualization from a snapshot or JSON file.
 
     SOURCE can be a snapshot ID/label, a JSON file path, or omitted to use
@@ -404,7 +406,7 @@ def visualize(ctx: click.Context, source: str | None, fmt: str, output: Path | N
 
     from adjacency.models import AdjacencyTable
     from adjacency.store import list_snapshots, load_snapshot
-    from adjacency.visualize import generate_dot, generate_html
+    from adjacency.visualize import generate_dot, generate_html, generate_lucid, push_lucid
 
     snapshot_dir = ctx.obj["snapshot_dir"]
     table: AdjacencyTable
@@ -440,10 +442,21 @@ def visualize(ctx: click.Context, source: str | None, fmt: str, output: Path | N
         path = generate_html(table, output, title=title)
         console.print(f"[green]HTML map written to:[/] {path}")
         console.print(f"[dim]Open in browser:[/] open {path}")
-    else:
+    elif fmt == "dot":
         dot_text = generate_dot(table, output)
         console.print(f"[green]DOT file written to:[/] {output}")
         console.print(f"[dim]Render with:[/] neato -Tpng {output} -o adjacency.png")
+    elif fmt == "lucid":
+        path = generate_lucid(table, output, title=title)
+        console.print(f"[green]Lucidchart file written to:[/] {path}")
+        if api_key:
+            try:
+                url = push_lucid(path, api_key, title=title)
+                console.print(f"[green]Uploaded to Lucidchart:[/] {url}")
+            except Exception as e:
+                console.print(f"[red]Lucidchart upload failed:[/] {e}")
+        else:
+            console.print("[dim]Import into Lucidchart or use --api-key to upload directly.[/]")
 
 
 def main_entry() -> None:
