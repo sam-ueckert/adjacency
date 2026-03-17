@@ -1,0 +1,112 @@
+# Containerlab topology: 10-node campus + data center fabric
+#
+# Topology:
+#   [internet-rtr] ── (linux, not crawlable — simulates upstream ISP)
+#         │
+#   [border-01] ── border/edge router
+#     ┌───┴───┐
+# [spine-01] [spine-02]    DC spine layer
+#   ├───┼───┤
+# [leaf-01] [leaf-02]      DC leaf layer (peer link between them)
+#         │
+#   [campus-core]           Campus core switch
+#     ┌───┴───┐
+# [dist-01]  [dist-02]     Campus distribution
+#     │         │
+# [access-01] [access-02]  Campus access
+#
+# 10 network devices.  internet-rtr is a plain Linux container with
+# static routing — it will NOT respond to LLDP/SNMP, so adjacency crawl
+# discovers it as an opaque next-hop (default route only).
+#
+# Image: Nokia SR Linux (free, no license)
+# Deploy:  sudo containerlab deploy -t medium.clab.yml
+# Destroy: sudo containerlab destroy -t medium.clab.yml
+
+name: adj-medium
+
+topology:
+  defaults:
+    kind: nokia_srlinux
+    image: ghcr.io/nokia/srlinux:latest
+
+  nodes:
+    # --- upstream (not crawlable) ---
+    internet-rtr:
+      kind: linux
+      image: alpine:latest
+      exec:
+        - ip addr add 10.0.0.1/30 dev eth1
+        - ip link set eth1 up
+        - sysctl -w net.ipv4.ip_forward=1
+
+    # --- DC border ---
+    border-01:
+      kind: nokia_srlinux
+      startup-config: configs/medium/border-01.cfg
+
+    # --- DC spine ---
+    spine-01:
+      kind: nokia_srlinux
+      startup-config: configs/medium/spine-01.cfg
+    spine-02:
+      kind: nokia_srlinux
+      startup-config: configs/medium/spine-02.cfg
+
+    # --- DC leaf ---
+    leaf-01:
+      kind: nokia_srlinux
+      startup-config: configs/medium/leaf-01.cfg
+    leaf-02:
+      kind: nokia_srlinux
+      startup-config: configs/medium/leaf-02.cfg
+
+    # --- campus ---
+    campus-core:
+      kind: nokia_srlinux
+      startup-config: configs/medium/campus-core.cfg
+    dist-01:
+      kind: nokia_srlinux
+      startup-config: configs/medium/dist-01.cfg
+    dist-02:
+      kind: nokia_srlinux
+      startup-config: configs/medium/dist-02.cfg
+    access-01:
+      kind: nokia_srlinux
+      startup-config: configs/medium/access-01.cfg
+    access-02:
+      kind: nokia_srlinux
+      startup-config: configs/medium/access-02.cfg
+
+  links:
+    # internet-rtr <-> border-01
+    - endpoints: ["internet-rtr:eth1", "border-01:e1-1"]
+
+    # border-01 <-> spine-01, spine-02
+    - endpoints: ["border-01:e1-2", "spine-01:e1-1"]
+    - endpoints: ["border-01:e1-3", "spine-02:e1-1"]
+
+    # spine-01 <-> leaf-01, leaf-02
+    - endpoints: ["spine-01:e1-2", "leaf-01:e1-1"]
+    - endpoints: ["spine-01:e1-3", "leaf-02:e1-1"]
+
+    # spine-02 <-> leaf-01, leaf-02
+    - endpoints: ["spine-02:e1-2", "leaf-01:e1-2"]
+    - endpoints: ["spine-02:e1-3", "leaf-02:e1-2"]
+
+    # leaf-01 <-> leaf-02: peer link
+    - endpoints: ["leaf-01:e1-3", "leaf-02:e1-3"]
+
+    # leaf-02 <-> campus-core: LAG (2 members)
+    - endpoints: ["leaf-02:e1-4", "campus-core:e1-1"]
+    - endpoints: ["leaf-02:e1-5", "campus-core:e1-2"]
+
+    # campus-core <-> dist-01, dist-02
+    - endpoints: ["campus-core:e1-3", "dist-01:e1-1"]
+    - endpoints: ["campus-core:e1-4", "dist-02:e1-1"]
+
+    # dist-01 <-> access-01
+    - endpoints: ["dist-01:e1-2", "access-01:e1-1"]
+
+    # dist-02 <-> access-02
+    - endpoints: ["dist-02:e1-2", "access-02:e1-1"]

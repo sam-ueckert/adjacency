@@ -1,0 +1,98 @@
+# Containerlab topology: 10-node campus + data center fabric (Arista cEOS)
+#
+# Same topology as medium.clab.yml but using Arista cEOS images.
+# Requires cEOS image imported into Docker:
+#   docker import cEOS64-lab-4.32.2F.tar ceos:4.32.2F
+#
+# Deploy:  sudo containerlab deploy -t medium-ceos.clab.yml
+# Destroy: sudo containerlab destroy -t medium-ceos.clab.yml
+
+name: adj-medium-ceos
+
+topology:
+  defaults:
+    kind: ceos
+    image: ceos:4.32.2F
+    env:
+      INTFTYPE: et
+
+  nodes:
+    # --- upstream (not crawlable) ---
+    internet-rtr:
+      kind: linux
+      image: alpine:latest
+      exec:
+        - ip addr add 10.0.0.1/30 dev eth1
+        - ip link set eth1 up
+        - sysctl -w net.ipv4.ip_forward=1
+
+    # --- DC border ---
+    border-01:
+      kind: ceos
+      startup-config: configs/medium-ceos/border-01.cfg
+
+    # --- DC spine ---
+    spine-01:
+      kind: ceos
+      startup-config: configs/medium-ceos/spine-01.cfg
+    spine-02:
+      kind: ceos
+      startup-config: configs/medium-ceos/spine-02.cfg
+
+    # --- DC leaf ---
+    leaf-01:
+      kind: ceos
+      startup-config: configs/medium-ceos/leaf-01.cfg
+    leaf-02:
+      kind: ceos
+      startup-config: configs/medium-ceos/leaf-02.cfg
+
+    # --- campus ---
+    campus-core:
+      kind: ceos
+      startup-config: configs/medium-ceos/campus-core.cfg
+    dist-01:
+      kind: ceos
+      startup-config: configs/medium-ceos/dist-01.cfg
+    dist-02:
+      kind: ceos
+      startup-config: configs/medium-ceos/dist-02.cfg
+    access-01:
+      kind: ceos
+      startup-config: configs/medium-ceos/access-01.cfg
+    access-02:
+      kind: ceos
+      startup-config: configs/medium-ceos/access-02.cfg
+
+  links:
+    # internet-rtr <-> border-01
+    - endpoints: ["internet-rtr:eth1", "border-01:eth1"]
+
+    # border-01 <-> spine-01, spine-02
+    - endpoints: ["border-01:eth2", "spine-01:eth1"]
+    - endpoints: ["border-01:eth3", "spine-02:eth1"]
+
+    # spine-01 <-> leaf-01, leaf-02
+    - endpoints: ["spine-01:eth2", "leaf-01:eth1"]
+    - endpoints: ["spine-01:eth3", "leaf-02:eth1"]
+
+    # spine-02 <-> leaf-01, leaf-02
+    - endpoints: ["spine-02:eth2", "leaf-01:eth2"]
+    - endpoints: ["spine-02:eth3", "leaf-02:eth2"]
+
+    # leaf-01 <-> leaf-02: peer link
+    - endpoints: ["leaf-01:eth3", "leaf-02:eth3"]
+
+    # leaf-02 <-> campus-core: LAG (2 members)
+    - endpoints: ["leaf-02:eth4", "campus-core:eth1"]
+    - endpoints: ["leaf-02:eth5", "campus-core:eth2"]
+
+    # campus-core <-> dist-01, dist-02
+    - endpoints: ["campus-core:eth3", "dist-01:eth1"]
+    - endpoints: ["campus-core:eth4", "dist-02:eth1"]
+
+    # dist-01 <-> access-01
+    - endpoints: ["dist-01:eth2", "access-01:eth1"]
+
+    # dist-02 <-> access-02
+    - endpoints: ["dist-02:eth2", "access-02:eth1"]

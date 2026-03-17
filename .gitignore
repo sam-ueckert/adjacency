@@ -17,3 +17,4 @@ htmlcov/
 inventory/hosts.yaml
 inventory/credentials.yaml
 credentials.yaml
+work/

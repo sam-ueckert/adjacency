@@ -95,9 +95,52 @@ docker load -i xrd-control-plane-container-x64.dockerv1.tgz
 Same topology as above using Arista cEOS images. Requires the cEOS Docker
 image to be imported first.
 
-### medium.clab.yml — 3-tier with MLAG pair (planned)
+### medium.clab.yml — 10-node campus + DC fabric (SR Linux)
 
-Adds an access layer and an MLAG/vPC pair.
+```
+                  ┌──────────────┐
+                  │ internet-rtr │  (linux — not crawlable)
+                  └──────┬───────┘
+                         │
+                  ┌──────┴───────┐
+                  │  border-01   │  DC border/edge
+                  └──┬───────┬───┘
+                     │       │
+              ┌──────┴──┐ ┌──┴──────┐
+              │spine-01 │ │ spine-02│  DC spine layer
+              └──┬──┬───┘ └───┬──┬──┘
+                 │  │         │  │
+           ┌─────┘  └────┬────┘  └─────┐
+           │             │             │
+      ┌────┴────┐   peer link    ┌─────┴───┐
+      │ leaf-01 │◄──────────────►│ leaf-02  │  DC leaf layer
+      └─────────┘                └──┬──┬────┘
+                                  LAG│  │LAG
+                              ┌─────┴──┴────┐
+                              │ campus-core  │  Campus core
+                              └──┬───────┬──┘
+                                 │       │
+                          ┌──────┴──┐ ┌──┴──────┐
+                          │ dist-01 │ │ dist-02  │  Campus distribution
+                          └────┬────┘ └────┬─────┘
+                               │           │
+                        ┌──────┴───┐ ┌─────┴──────┐
+                        │access-01 │ │ access-02  │  Campus access
+                        └──────────┘ └────────────┘
+```
+
+- 10 network devices across DC fabric and campus tiers
+- `internet-rtr` is a plain Linux container (no LLDP/SNMP) — simulates an
+  uncrawlable upstream ISP with a default route from `border-01`
+- LAG between leaf-02 and campus-core (2 member links)
+- Peer link between leaf-01 and leaf-02
+- Full LLDP on all managed links
+
+### medium-ceos.clab.yml — 10-node campus + DC fabric (Arista cEOS)
+
+Same topology as above using Arista cEOS images. Includes Port-Channel
+configs for the LAG between leaf-02 and campus-core. Requires the cEOS
+Docker image to be imported first.
 
 ## Usage
 
