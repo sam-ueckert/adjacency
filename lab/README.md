@@ -1,30 +1,76 @@
-# Lab topologies for adjacency testing
+# Lab Environment
 
 These [Containerlab](https://containerlab.dev/) topology files create
 simulated networks to test adjacency discovery against real control planes.
 
-## Prerequisites
+## Tools Overview
+
+### Containerlab
+
+Containerlab is an orchestration tool that deploys network lab topologies
+using containers. It manages container lifecycle, inter-node wiring, and
+startup configs — all defined in a single YAML file.
+
+- Site: https://containerlab.dev/
+- Runs on Linux (Docker required)
+- macOS requires a Linux VM (see below)
+
+### Network OS Images
+
+Containerlab supports many vendor network operating systems as container
+images. The three most common for lab use:
+
+| Image | Vendor | Platform | License | Containerlab `kind` |
+|-------|--------|----------|---------|---------------------|
+| **SR Linux** | Nokia | srlinux | Free, no account needed | `nokia_srlinux` |
+| **cEOS** | Arista | eos | Free with Arista account | `ceos` |
+| **cXRd** | Cisco | iosxr | Requires Cisco entitlement | `cisco_xrd` |
+
+**SR Linux** is the easiest to get started with — no account or license
+required. **cEOS** (containerized EOS) is Arista's switching OS in a
+container. **cXRd** (containerized IOS XR) is Cisco's routing-focused
+equivalent; it runs natively in Docker but requires an image download from
+Cisco.
+
+Cisco also offers VM-based options (**Nexus 9000v** for NX-OS, **CSR 1000v /
+Catalyst 8000v** for IOS XE) that can integrate with Containerlab via
+[vrnetlab](https://containerlab.dev/manual/vrnetlab/), but these are heavier
+and slower to boot than native container images.
+
+## Setup
+
+### Install Containerlab
 
 ```bash
-# Install containerlab (Linux — runs the lab engine)
+# Linux
 bash -c "$(curl -sL https://get.containerlab.dev)"
 
 # macOS: containerlab requires a Linux host or VM.  Options:
 #   - Rancher Desktop (recommended, already provides Docker)
 #   - Docker Desktop with a containerlab wrapper
 #   - A Linux VM via colima, UTM, or Parallels
+```
 
-# Pull a free network OS image (no license needed):
+### Pull / Import Network OS Images
+
+```bash
+# Nokia SR Linux (free, no license needed)
 docker pull ghcr.io/nokia/srlinux:latest
 
-# Or, with an Arista account, download cEOS:
-#   https://www.arista.com/en/support/software-download
-# Then: docker import cEOS64-lab-4.32.2F.tar ceos:4.32.2F
+# Arista cEOS (free with Arista account)
+#   1. Download from https://www.arista.com/en/support/software-download
+#   2. Import:
+docker import cEOS64-lab-4.32.2F.tar ceos:4.32.2F
+
+# Cisco cXRd (requires Cisco entitlement)
+#   1. Download from https://software.cisco.com
+#   2. Load:
+docker load -i xrd-control-plane-container-x64.dockerv1.tgz
 ```
 
 ## Topologies
 
-### small.clab.yml — 4-node leaf-spine
+### small.clab.yml — 4-node leaf-spine (SR Linux)
 
 ```
          ┌──────────┐     ┌──────────┐
@@ -42,6 +88,12 @@ docker pull ghcr.io/nokia/srlinux:latest
 - Each leaf dual-homed to both spines
 - LLDP enabled on all links
 - LAG between leaf-01 and spine-01 (2 member links)
+- Peer link between leaf-01 and leaf-02
+
+### small-ceos.clab.yml — 4-node leaf-spine (Arista cEOS)
+
+Same topology as above using Arista cEOS images. Requires the cEOS Docker
+image to be imported first.
 
 ### medium.clab.yml — 3-tier with MLAG pair (planned)
 
@@ -69,7 +121,7 @@ adjacency -i lab-inventory/ discover
 sudo containerlab destroy -t small.clab.yml
 ```
 
-## Integration tests
+## Integration Tests
 
 ```bash
 # Full integration test (requires running lab)
